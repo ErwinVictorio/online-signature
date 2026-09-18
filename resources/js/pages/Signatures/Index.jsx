@@ -1,0 +1,7 @@
+import { router } from '@inertiajs/react';
+import AppLayout from '@/layouts/AppLayout';
+import { Button } from '@/components/ui/button';
+import SignatureUploader from '@/components/SignatureUploader';
+export default function Index({ signatures }) {
+    return <AppLayout title="Signature library"><div className="grid items-start gap-6 xl:grid-cols-[320px_1fr]"><section className="panel"><h2 className="mb-5 font-semibold">Upload signature</h2><SignatureUploader /></section><section className="grid gap-4 sm:grid-cols-2">{signatures.map(signature => <article key={signature.id} className="panel"><img className="mb-4 h-28 w-full object-contain" src={signature.image_url} alt={signature.name} /><h2 className="font-semibold">{signature.name}</h2><div className="mt-4 flex flex-wrap gap-2">{signature.is_default ? <span className="rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700">Default signature</span> : <Button variant="outline" onClick={() => router.patch(`/signatures/${signature.id}/default`)}>Set default</Button>}<Button variant="destructive" onClick={() => { if (confirm('Delete this saved signature? Drafts and templates using it will need a replacement.')) router.delete(`/signatures/${signature.id}`); }}>Delete</Button></div></article>)}{!signatures.length && <p className="panel text-sm text-slate-500">Upload a signature to reuse it across your documents.</p>}</section></div></AppLayout>;
+}

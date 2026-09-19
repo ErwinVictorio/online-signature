@@ -21,6 +21,9 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/storage/framework/browser-test/
+/storage/framework/lessmsi*
+/storage/framework/word-fixtures/
 /vendor
 Homestead.json
 Homestead.yaml

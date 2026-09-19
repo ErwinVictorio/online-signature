@@ -57,3 +57,11 @@ See [OPERATIONS.md](OPERATIONS.md) for startup, account creation, upload/server 
 Follow-up: the user switched `.env` to MySQL database `signature`. The username migration and admin seeder were applied there successfully. Username login tests and the frontend build passed.
 
 The existing SQLite configuration was retained. MySQL deployment and physical tablet/touch-device testing were not performed. Client-generated output is validated and stored, but its bytes are not cryptographically attested against placements. This remains an electronic signature tool.
+
+## Word support — 2026-09-19
+
+Continued the existing partial Word implementation and completed the upload-to-signed-PDF workflow. PDF/DOCX/DOC uploads now have private originals, queued conversion states, owner-only retries, validated editor PDFs, mandatory conversion-layout review before signing, separate downloads, and conversion audit history. Duplicate/stale jobs and deletion races cannot publish orphaned results. SQLite migration backfill preserves signed versions and audit links.
+
+Verification: 36 backend tests (307 assertions), 4 editor tests, 3 Chrome browser workflows, production build, and Pint passed. Real LibreOffice 26.8.0.3 converted DOCX and binary DOC samples into two-page PDFs and a richer layout fixture into three pages. Concurrent DOC/DOCX conversion passed with no remaining job directories. Portrait and landscape editor screenshots were visually inspected. Browser tests use isolated `storage/app/browser-test` data.
+
+The local `.env` points to the extracted LibreOffice runtime in ignored private application storage; the standard system installer was busy, so the verified package was extracted without interrupting unrelated installers. A local conversion worker was started. `composer run dev` now starts that worker automatically for future development sessions. Apache PHP upload limits are set per project in `public/.htaccess`; the local login route returned HTTP 200 afterward. See OPERATIONS.md for runtime setup, restart/retry procedures, and remaining production service-account/network/resource-supervision requirements.

@@ -22,8 +22,8 @@ test('upload, place, save, reopen, sign, download and reuse a template', async (
     await expect(page.getByRole('heading', { name: 'Browser signature' }).first()).toBeVisible();
     const pdf = await PDFDocument.create(); pdf.addPage([612, 792]); const rotated = pdf.addPage([612, 792]); rotated.setRotation(degrees(90));
     await page.goto('/documents/create');
-    await page.getByLabel('PDF file').setInputFiles({ name: 'browser-contract.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()) });
-    await page.getByRole('button', { name: 'Upload and open editor' }).click();
+    await page.getByLabel('Document file').setInputFiles({ name: 'browser-contract.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()) });
+    await page.getByRole('button', { name: 'Upload document' }).click();
     await expect(page).toHaveURL(/documents\/\d+\/edit/);
     const editorUrl = page.url();
     await page.getByRole('button', { name: /Browser signature/ }).first().click();

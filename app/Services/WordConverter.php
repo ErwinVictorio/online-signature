@@ -25,9 +25,9 @@ class WordConverter
         $root = config('document_conversion.temporary_root');
         File::ensureDirectoryExists($root);
         $directory = $root.DIRECTORY_SEPARATOR.Str::uuid();
-        File::ensureDirectoryExists($directory.'/profile/user');
-        File::ensureDirectoryExists($directory.'/output');
         try {
+            File::ensureDirectoryExists($directory.'/profile/user');
+            File::ensureDirectoryExists($directory.'/output');
             File::copy($source, $directory.'/source.'.$format);
             File::put($directory.'/profile/user/registrymodifications.xcu', $this->profile());
             $profile = str_replace('\\', '/', realpath($directory.'/profile'));
@@ -45,6 +45,7 @@ class WordConverter
             if (! is_file($output) || filesize($output) < 1 || filesize($output) > config('document_conversion.max_output_bytes')) {
                 throw new \RuntimeException('Conversion did not produce a supported PDF.');
             }
+
             return $consume($output);
         } finally {
             // Only this generated per-job directory can be removed.

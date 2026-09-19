@@ -1,6 +1,17 @@
 # Word Document Support Plan
 
-Status: Planning only. Not implemented.
+Status: Application implementation and local verification completed on 2026-09-19. Production service-account, firewall, font licensing, and process supervision checks remain deployment responsibilities; see [OPERATIONS.md](OPERATIONS.md).
+
+## Execution record — 2026-09-19
+
+- Continued the existing converter, inspectors, migration, and queue implementation; connected upload, editor, draft/signing guards, layout review, retries, downloads, and deletion.
+- `file_path` remains the immutable original; `editor_pdf_path` identifies the validated PDF. PDF migration backfill preserves signed versions and audit links, including SQLite table rebuilds.
+- Added stale/duplicate/deleted-job protection checks, publication/storage failure checks, explicit queue audit actors, unsafe-package rejection, and timeout/retry verification.
+- Local LibreOffice 26.8.0.3 runs from the verified MSI extracted under `storage/app/libreoffice/SourceDir/LibreOffice`; `.env` points to its `program/soffice.com`. The system-wide Windows Installer was busy (1618), so the extracted runtime is used instead.
+- Real DOCX and binary DOC samples convert to 2-page PDFs. A richer DOCX sample converts to 3 pages with spanning/nested tables, a source image, headers/footers, Unicode, missing-font substitution, and mixed page orientation. Originals remain intact.
+- Automated backend suite: 36 tests, 307 assertions. Editor unit tests and production build pass. Browser coverage includes the existing PDF signing workflow and real queued Word conversion through signed/original/converted downloads.
+- The converter profile disables macros and active content and redirects HTTP(S) proxy traffic. This is defense in depth, not an operating-system sandbox; production workers still require restricted accounts, network denial, and resource supervision.
+- Google Docs links and editable signed DOCX output remain outside this plan.
 
 ## Objective
 

@@ -17,6 +17,7 @@ class SignedDocumentController extends Controller
     public function draft(Request $request, Document $document, PlacementValidator $validator, AuditLogService $audit)
     {
         Gate::authorize('update', $document);
+        $document->editorPath();
         $request->validate(['revision' => 'required|integer|min:0']);
         $placements = $validator->validate($request->all(), $request->user()->id, $document->page_count);
         $revision = DB::transaction(function () use ($request, $document, $placements, $audit) {
@@ -34,6 +35,7 @@ class SignedDocumentController extends Controller
     public function store(Request $request, Document $document, PlacementValidator $validator, PdfInspector $inspector, AuditLogService $audit)
     {
         Gate::authorize('update', $document);
+        $document->requireConversionReview();
         $request->validate(['revision' => 'required|integer|min:0', 'file' => 'required|file|mimes:pdf|mimetypes:application/pdf|extensions:pdf|max:40960', 'placements' => 'required|string|max:200000']);
         try {
             $placements = json_decode($request->input('placements'), true, 32, JSON_THROW_ON_ERROR);

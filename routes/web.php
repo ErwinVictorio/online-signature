@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ConversionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\SignatureController;
@@ -30,6 +31,8 @@ Route::middleware('auth')->group(function () {
     Route::resource('documents', DocumentController::class)->except('update');
     Route::get('/documents/{document}/file', [DocumentController::class, 'file'])->name('documents.file');
     Route::get('/documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
+    Route::post('/documents/{document}/conversion/retry', [ConversionController::class, 'retry'])->middleware('throttle:10,1')->name('documents.conversion.retry');
+    Route::post('/documents/{document}/conversion/review', [ConversionController::class, 'review'])->name('documents.conversion.review');
     Route::put('/documents/{document}/placements', [SignedDocumentController::class, 'draft'])->name('documents.placements');
     Route::post('/documents/{document}/sign', [SignedDocumentController::class, 'store'])->middleware('throttle:10,1')->name('documents.sign');
     Route::resource('signatures', SignatureController::class)->only('index', 'store', 'destroy');

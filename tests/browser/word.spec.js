@@ -1,0 +1,77 @@
+import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { PDFDocument } from 'pdf-lib';
+
+test('Word upload converts, requires review, signs, and downloads separate copies', async ({ page }) => {
+    test.setTimeout(120000);
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto('/login');
+    await page.getByLabel('Username or email', { exact: true }).fill('browser@example.test');
+    await page.getByLabel('Password', { exact: true }).fill('browser-test-password');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(page).toHaveURL(/dashboard/);
+    await page.goto('/documents/create');
+    const original = readFileSync('storage/app/browser-test/agreement.docx');
+    await page.getByLabel('Document file').setInputFiles({ name: 'browser-agreement.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: original });
+    await page.getByRole('button', { name: 'Upload document', exact: true }).click();
+    await expect(page).toHaveURL(/\/documents\/\d+$/);
+    const details = page.url();
+    await expect(page.getByRole('status')).toContainText(/Queued|Converting|Ready/);
+    await expect(page.getByRole('link', { name: 'Open editor', exact: true })).toBeVisible({ timeout: 90000 });
+    await page.getByRole('link', { name: 'Open editor', exact: true }).click();
+    await expect(page.getByText('Converted PDF from browser-agreement.docx')).toBeVisible();
+    await page.getByRole('button', { name: 'Name', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Preview signed PDF', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'I have reviewed the converted layout', exact: true }).click();
+    await expect(page.getByText('Converted layout reviewed.', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await expect(page.getByText('All changes saved')).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Select name', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.getByLabel('Page', { exact: true })).toHaveValue('2');
+    await page.getByRole('button', { name: 'Preview signed PDF', exact: true }).click();
+    const signedDownload = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Save signed copy and download', exact: true }).click();
+    expect((await signedDownload).suggestedFilename()).toBe('browser-agreement-signed.pdf');
+    await expect(page.getByText('All changes saved')).toBeVisible();
+    await page.goto(details);
+    for (const [label, name] of [['Download original', 'browser-agreement.docx'], ['Download converted PDF', 'browser-agreement-converted.pdf'], ['Download signed PDF', 'browser-agreement-signed.pdf']]) {
+        const pending = page.waitForEvent('download');
+        await page.getByRole('link', { name: label, exact: true }).click();
+        const download = await pending;
+        expect(download.suggestedFilename()).toBe(name);
+        if (label === 'Download original') expect(readFileSync(await download.path())).toEqual(original);
+    }
+    await page.screenshot({ path: 'test-results/word-document.png', fullPage: true });
+    expect(errors).toEqual([]);
+});
+
+test('complex Word layout retains portrait and landscape pages for review', async ({ page }) => {
+    test.setTimeout(120000);
+    await page.goto('/login');
+    await page.getByLabel('Username or email', { exact: true }).fill('browser@example.test');
+    await page.getByLabel('Password', { exact: true }).fill('browser-test-password');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(page).toHaveURL(/dashboard/);
+    await page.goto('/documents/create');
+    await page.getByLabel('Document file').setInputFiles('storage/app/browser-test/layout.docx');
+    await page.getByRole('button', { name: 'Upload document', exact: true }).click();
+    await expect(page).toHaveURL(/\/documents\/\d+$/);
+    const details = page.url();
+    await expect(page.getByRole('link', { name: 'Open editor', exact: true })).toBeVisible({ timeout: 90000 });
+    const response = await page.request.get(`${details}/file`);
+    expect(response.ok()).toBeTruthy();
+    const pdf = await PDFDocument.load(await response.body());
+    expect(pdf.getPageCount()).toBeGreaterThanOrEqual(3);
+    expect(pdf.getPage(0).getWidth()).toBeLessThan(pdf.getPage(0).getHeight());
+    const last = pdf.getPage(pdf.getPageCount() - 1);
+    expect(last.getWidth()).toBeGreaterThan(last.getHeight());
+    await page.getByRole('link', { name: 'Open editor', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Name', exact: true })).toBeEnabled();
+    await page.screenshot({ path: 'test-results/word-layout-portrait.png', fullPage: true });
+    await page.getByLabel('Page', { exact: true }).selectOption(String(pdf.getPageCount()));
+    await expect(page.getByRole('button', { name: 'Name', exact: true })).toBeEnabled();
+    await page.screenshot({ path: 'test-results/word-layout-landscape.png', fullPage: true });
+});

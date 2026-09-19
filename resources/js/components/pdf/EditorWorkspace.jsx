@@ -33,6 +33,7 @@ export default function EditorWorkspace({ document: doc, signatures, templates =
     const [templateId, setTemplateId] = useState(''), [text, setText] = useState(auth.user.name);
     const [date, setDate] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
     const [dateFormat, setDateFormat] = useState('long');
+    const [reviewed, setReviewed] = useState(doc.source_format === 'pdf' || !!doc.conversion_reviewed_at);
     const previewRef = useRef(null);
     const dirty = saved !== JSON.stringify(elements);
     const active = elements.find(e => e.id === selected);
@@ -95,6 +96,7 @@ export default function EditorWorkspace({ document: doc, signatures, templates =
         finally { setBusy(''); }
     }
     async function generate() {
+        if (!reviewed) { toast.error('Review and confirm the converted PDF layout before signing.'); return; }
         setBusy('Generating signed PDF...');
         try {
             const { generateSignedPdf } = await import('@/lib/exportPdf');
@@ -138,11 +140,17 @@ export default function EditorWorkspace({ document: doc, signatures, templates =
     }
 
     return <AppLayout title={doc.original_name} actions={<div className="flex items-center gap-4"><span className="text-xs text-slate-500">{dirty ? 'Unsaved changes' : 'All changes saved'}</span><Link href={`/documents/${doc.id}`}>Document details</Link></div>}>
+        {doc.source_format !== 'pdf' && <section className="panel mb-4 border-indigo-200"><p className="font-semibold">Converted PDF from {doc.original_name}</p><p className="mt-1 text-sm text-slate-600">Review every page, font, table, and placement position. Conversion may change the layout. Signed output is PDF; the Word original stays unchanged.</p>{reviewed ? <p className="mt-2 text-sm text-green-700">Converted layout reviewed.</p> : <Button className="mt-3" disabled={!pdf || !!busy} onClick={async () => {
+            setBusy('Confirming review...');
+            try { await axios.post(`/documents/${doc.id}/conversion/review`); setReviewed(true); }
+            catch (e) { toast.error(errorMessage(e)); }
+            finally { setBusy(''); }
+        }}>I have reviewed the converted layout</Button>}</section>}
         <div className="panel mb-4 flex flex-wrap items-center gap-2">
             <Button variant="outline" disabled={!!busy || page <= 1} onClick={() => changePage(page - 1)}>Previous</Button><label className="text-sm">Page <select aria-label="Page" value={page} disabled={!!busy || !pdf} onChange={e => changePage(Number(e.target.value))}>{Array.from({ length: pdf?.numPages || doc.page_count }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</select> / {pdf?.numPages || doc.page_count}</label><Button variant="outline" disabled={!!busy || !pdf || page >= pdf.numPages} onClick={() => changePage(page + 1)}>Next</Button>
             <Button aria-label="Zoom out" variant="outline" disabled={!!busy || scale <= 0.25} onClick={() => { setViewport(null); setScale(Math.max(0.25, scale - 0.25)); }}>−</Button><span className="text-sm">{Math.round(scale * 100)}%</span><Button aria-label="Zoom in" variant="outline" disabled={!!busy || scale >= 2} onClick={() => { setViewport(null); setScale(Math.min(2, scale + 0.25)); }}>+</Button>
             <Button variant="ghost" disabled={!!busy || !history.past.length} onClick={() => dispatch({ type: 'undo' })}>Undo</Button><Button variant="ghost" disabled={!!busy || !history.future.length} onClick={() => dispatch({ type: 'redo' })}>Redo</Button>
-            <Button variant="outline" disabled={!!busy || !pdf} onClick={saveDraft}>Save draft</Button><Button disabled={!!busy || !pdf || !elements.length} onClick={generate}>Preview signed PDF</Button>{signed && <a className="text-sm text-indigo-700" href={`/documents/${doc.id}/download`}>Download last signed copy</a>}
+            <Button variant="outline" disabled={!!busy || !pdf} onClick={saveDraft}>Save draft</Button><Button disabled={!!busy || !pdf || !elements.length || !reviewed} onClick={generate}>Preview signed PDF</Button>{signed && <a className="text-sm text-indigo-700" href={`/documents/${doc.id}/download`}>Download last signed copy</a>}
         </div>
         {busy && <p role="status" className="mb-4 text-sm text-indigo-700">{busy}</p>}{error && <p role="alert" className="panel text-red-700">{error}</p>}{!pdf && !error && <p className="panel">Loading document...</p>}
         {pdf && <div className="grid items-start gap-4 xl:grid-cols-[120px_minmax(0,1fr)_260px]">

@@ -13,8 +13,13 @@ class DocumentService
     {
         $format = strtolower($file->getClientOriginalExtension());
         $pages = $format === 'pdf' ? app(PdfInspector::class)->inspect($file) : null;
-        if ($format !== 'pdf') $format = app(WordUploadInspector::class)->inspect($file);
+        if ($format !== 'pdf') {
+            $format = app(WordUploadInspector::class)->inspect($file);
+        }
         $path = $file->store('documents/'.$userId, 'private');
+        if (! $path) {
+            throw new \RuntimeException('Unable to store uploaded document.');
+        }
         try {
             $document = DB::transaction(function () use ($file, $userId, $pages, $path, $format) {
                 $document = Document::create([
@@ -24,7 +29,9 @@ class DocumentService
                     'conversion_status' => $format === 'pdf' ? 'not_required' : 'queued', 'conversion_attempt' => $format === 'pdf' ? 0 : 1,
                 ]);
                 app(AuditLogService::class)->record('document_uploaded', $document);
-                if ($format !== 'pdf') app(AuditLogService::class)->record('conversion_queued', $document);
+                if ($format !== 'pdf') {
+                    app(AuditLogService::class)->record('conversion_queued', $document);
+                }
 
                 return $document;
             });
@@ -32,7 +39,10 @@ class DocumentService
             Storage::disk('private')->delete($path);
             throw $e;
         }
-        if ($format !== 'pdf') app(ConversionService::class)->dispatch($document);
+        if ($format !== 'pdf') {
+            app(ConversionService::class)->dispatch($document);
+        }
+
         return $document;
     }
 }

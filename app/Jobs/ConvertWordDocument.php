@@ -21,41 +21,71 @@ class ConvertWordDocument implements ShouldQueue
     use Queueable;
 
     public int $tries = 2;
+
     public int $timeout = 150;
+
     public bool $failOnTimeout = true;
 
     public function __construct(public int $documentId, public int $attempt) {}
 
-    public function backoff(): array { return [15]; }
+    public function backoff(): array
+    {
+        return [15];
+    }
 
     public function handle(WordConverter $converter, PdfInspector $inspector): void
     {
         $document = DB::transaction(function () {
             $document = Document::whereKey($this->documentId)->lockForUpdate()->first();
-            if (! $document || $document->conversion_attempt !== $this->attempt || $document->conversion_status !== 'queued') return null;
+            if (! $document || $document->conversion_attempt !== $this->attempt || $document->conversion_status !== 'queued') {
+                return null;
+            }
             $document->update(['conversion_status' => 'converting', 'conversion_started_at' => now(), 'conversion_error' => null]);
             app(AuditLogService::class)->record('conversion_started', $document, $document->user_id);
+
             return $document;
         });
-        if (! $document) return;
+        if (! $document) {
+            return;
+        }
         $path = null;
+        $published = false;
         try {
-            $converter->convert(Storage::disk('private')->path($document->file_path), $document->source_format, function ($pdf) use ($document, $inspector, &$path) {
+            $converter->convert(Storage::disk('private')->path($document->file_path), $document->source_format, function ($pdf) use ($document, $inspector, &$path, &$published) {
                 $pages = $inspector->inspect(new UploadedFile($pdf, 'converted.pdf', 'application/pdf', null, true));
                 $path = 'converted-documents/'.$document->user_id.'/'.Str::uuid().'.pdf';
                 $stream = fopen($pdf, 'rb');
-                try { Storage::disk('private')->put($path, $stream); } finally { fclose($stream); }
+                try {
+                    if (! Storage::disk('private')->put($path, $stream)) {
+                        throw new \RuntimeException('Unable to store converted PDF.');
+                    }
+                } finally {
+                    fclose($stream);
+                }
                 $published = DB::transaction(function () use ($path, $pages) {
                     $current = Document::whereKey($this->documentId)->lockForUpdate()->first();
-                    if (! $current || $current->conversion_attempt !== $this->attempt || $current->conversion_status !== 'converting') return false;
+                    if (! $current || $current->conversion_attempt !== $this->attempt || $current->conversion_status !== 'converting') {
+                        return false;
+                    }
                     $current->update(['editor_pdf_path' => $path, 'page_count' => $pages, 'conversion_status' => 'ready', 'converted_at' => now(), 'conversion_error' => null]);
                     app(AuditLogService::class)->record('conversion_succeeded', $current, $current->user_id);
+
                     return true;
                 });
-                if (! $published) Storage::disk('private')->delete($path);
+                if (! $published) {
+                    Storage::disk('private')->delete($path);
+                }
             });
         } catch (\Throwable $e) {
-            if ($path) Storage::disk('private')->delete($path);
+            if ($published) {
+                // Cleanup errors must not remove a PDF already committed as ready.
+                Log::warning('Word conversion temporary cleanup failed', ['document_id' => $this->documentId, 'exception' => $e]);
+
+                return;
+            }
+            if ($path) {
+                Storage::disk('private')->delete($path);
+            }
             Log::warning('Word conversion failed', ['document_id' => $this->documentId, 'attempt' => $this->attempt, 'exception' => $e]);
             if ($e instanceof ProcessTimedOutException && $this->job && $this->attempts() < $this->tries) {
                 Document::whereKey($this->documentId)->where('conversion_attempt', $this->attempt)->where('conversion_status', 'converting')->update(['conversion_status' => 'queued']);

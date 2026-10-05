@@ -10,6 +10,7 @@ import SignatureOverlay from './SignatureOverlay';
 import SignatureUploader from '@/components/SignatureUploader';
 import { loadPdf, pdfError } from '@/lib/pdf';
 import { clampPlacement } from '@/lib/placements';
+import { placementId } from '@/lib/placementId';
 import { historyReducer, initialHistory } from '@/lib/history';
 import { textImage } from '@/lib/textImage';
 
@@ -79,14 +80,14 @@ export default function EditorWorkspace({ document: doc, signatures, templates =
         if (type === 'initials') value = value.split(/\s+/).map(part => [...part][0] || '').join('').slice(0, 20);
         if (type !== 'signature' && !value) { toast.error('Enter a name or text first.'); return; }
         const width = type === 'initials' ? 0.1 : 0.28;
-        const element = clampPlacement({ id: crypto.randomUUID(), type, signature_id: signature?.id || null, text: type === 'signature' ? null : value, page_number: page, x_ratio: 0.1, y_ratio: 0.1, width_ratio: width, height_ratio: width * viewport.width / viewport.height * (signature ? signature.height / signature.width : 0.15) });
+        const element = clampPlacement({ id: placementId(), type, signature_id: signature?.id || null, text: type === 'signature' ? null : value, page_number: page, x_ratio: 0.1, y_ratio: 0.1, width_ratio: width, height_ratio: width * viewport.width / viewport.height * (signature ? signature.height / signature.width : 0.15) });
         setElements([...elements, element]); setSelected(element.id);
     }
     function change(next) { setElements(elements.map(e => e.id === next.id ? next : e)); }
     function remove() { setElements(elements.filter(e => e.id !== selected)); setSelected(null); }
     function duplicate() {
         if (!active || elements.length >= 200) return;
-        const next = clampPlacement({ ...active, id: crypto.randomUUID(), x_ratio: active.x_ratio + 0.025, y_ratio: active.y_ratio + 0.025 });
+        const next = clampPlacement({ ...active, id: placementId(), x_ratio: active.x_ratio + 0.025, y_ratio: active.y_ratio + 0.025 });
         setElements([...elements, next]); setSelected(next.id);
     }
     async function saveDraft() {
@@ -135,7 +136,7 @@ export default function EditorWorkspace({ document: doc, signatures, templates =
         if (template.placements.some(e => e.page_number > pdf.numPages)) { toast.error('This template uses pages that this document does not have.'); return; }
         if (template.placements.some(e => e.type === 'signature' && !signatures.some(s => s.id === e.signature_id))) { toast.error('A signature used by this template was deleted. Update the template with an available signature.'); return; }
         if (elements.length && !confirm('Replace the current placements with this template? You can undo this action.')) return;
-        setElements(template.placements.map(e => ({ ...e, id: crypto.randomUUID() }))); changePage(1);
+        setElements(template.placements.map(e => ({ ...e, id: placementId() }))); changePage(1);
         toast.success('Template applied. Check every page and date before signing.');
     }
 

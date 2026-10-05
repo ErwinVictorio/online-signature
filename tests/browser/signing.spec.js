@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 import { PDFDocument, degrees } from 'pdf-lib';
 
 test('upload, place, save, reopen, sign, download and reuse a template', async ({ page }) => {
+    // Simulate HTTP capabilities only in the app, preserving Chrome's PDF viewer.
+    await page.addInitScript(() => { if (location.protocol === 'http:') Object.defineProperty(window.crypto, 'randomUUID', { value: undefined, configurable: true }); });
     const errors = [];
     const templateName = `Browser template ${Date.now()}`;
     page.on('pageerror', error => errors.push(error.message));

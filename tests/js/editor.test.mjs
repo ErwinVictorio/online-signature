@@ -65,3 +65,14 @@ test('export embeds a signature into a real PDF while preserving source bytes', 
         assert.deepEqual(original, before);
     } finally { globalThis.fetch = originalFetch; await task.destroy(); }
 });
+
+// Regression: HTTP origins expose getRandomValues but may omit randomUUID.
+test('placement IDs work without randomUUID and remain valid distinct UUIDs', async () => {
+    const { placementId } = await import('../../resources/js/lib/placementId.js');
+    const httpCrypto = { getRandomValues: bytes => globalThis.crypto.getRandomValues(bytes) };
+    const ids = Array.from({ length: 1000 }, () => placementId(httpCrypto));
+    assert.equal(new Set(ids).size, ids.length);
+    for (const id of ids) assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    const native = globalThis.crypto.randomUUID();
+    assert.equal(placementId({ randomUUID: () => native }), native);
+});
